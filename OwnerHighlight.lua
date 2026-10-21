@@ -1,6 +1,4 @@
 -- Owner / Co-owner Panel : Highlight + Aim Assist + FOV + Fly
--- À placer dans StarterPlayer > StarterPlayerScripts (LocalScript).
--- Interface Rayfield ; aucun objet n'est ajouté à ReplicatedStorage.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
