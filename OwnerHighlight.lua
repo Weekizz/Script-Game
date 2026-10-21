@@ -293,352 +293,201 @@ RunService:BindToRenderStep("GameToolsStep", Enum.RenderPriority.Camera.Value + 
     updateAim(dt)
 end)
 
--- ====== INTERFACE ======
-local gui = Instance.new("ScreenGui")
-gui.Name = "GameToolsGui"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+-- ====== INTERFACE RAYFIELD ======
+-- Pour Roblox Studio, place une bibliothèque Rayfield compatible dans
+-- ReplicatedStorage sous forme de ModuleScript nommé "Rayfield".
+-- Le menu et tous ses contrôles sont créés par Rayfield ; seul le cercle FOV
+-- reste un indicateur visuel dans le jeu.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local rayfieldModule = ReplicatedStorage:WaitForChild("Rayfield")
+local Rayfield = require(rayfieldModule)
 
--- Cercle FOV (au centre de l'écran)
-local fovCircle = Instance.new("Frame")
-fovCircle.Name = "FovCircle"
-fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-fovCircle.Size = UDim2.fromOffset(CONFIG.FovRadius * 2, CONFIG.FovRadius * 2)
-fovCircle.BackgroundTransparency = 1
-fovCircle.Visible = CONFIG.ShowFovCircle
-fovCircle.Parent = gui
+-- Aucun ScreenGui personnalisé : toute l'interface de contrôle est créée par Rayfield.
+-- Le rayon FOV reste un réglage de ciblage interne, sans cercle graphique séparé.
 
-local circleCorner = Instance.new("UICorner")
-circleCorner.CornerRadius = UDim.new(1, 0)
-circleCorner.Parent = fovCircle
+local Window = Rayfield:CreateWindow({
+    Name = "Owner / Co-Owner Panel",
+    LoadingTitle = "Panneau d'administration",
+    LoadingSubtitle = "Highlight • Aim Assist • Fly",
+    ConfigurationSaving = { Enabled = false },
+    KeySystem = false,
+})
 
-local circleStroke = Instance.new("UIStroke")
-circleStroke.Thickness = 2
-circleStroke.Color = Color3.fromRGB(255, 255, 255)
-circleStroke.Transparency = 0.3
-circleStroke.Parent = fovCircle
-
--- Panneau du menu
-local panel = Instance.new("Frame")
-panel.Name = "Panel"
-panel.AnchorPoint = Vector2.new(1, 0)
-panel.Position = UDim2.new(1, -10, 0, 52)
-panel.Size = UDim2.new(0, 220, 0, 0)
-panel.AutomaticSize = Enum.AutomaticSize.Y
-panel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-panel.BackgroundTransparency = 0.15
-panel.Parent = gui
-
-local panelCorner = Instance.new("UICorner")
-panelCorner.CornerRadius = UDim.new(0, 10)
-panelCorner.Parent = panel
-
-local panelPadding = Instance.new("UIPadding")
-panelPadding.PaddingTop = UDim.new(0, 8)
-panelPadding.PaddingBottom = UDim.new(0, 8)
-panelPadding.PaddingLeft = UDim.new(0, 8)
-panelPadding.PaddingRight = UDim.new(0, 8)
-panelPadding.Parent = panel
-
-local panelLayout = Instance.new("UIListLayout")
-panelLayout.Padding = UDim.new(0, 6)
-panelLayout.SortOrder = Enum.SortOrder.LayoutOrder
-panelLayout.Parent = panel
-
--- Bouton pour ouvrir / fermer le menu
-local menuButton = Instance.new("TextButton")
-menuButton.Name = "MenuButton"
-menuButton.AnchorPoint = Vector2.new(1, 0)
-menuButton.Position = UDim2.new(1, -10, 0, 10)
-menuButton.Size = UDim2.new(0, 90, 0, 34)
-menuButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-menuButton.BackgroundTransparency = 0.1
-menuButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-menuButton.Font = Enum.Font.GothamBold
-menuButton.TextSize = 16
-menuButton.Text = "MENU"
-menuButton.Parent = gui
-
-local menuCorner = Instance.new("UICorner")
-menuCorner.CornerRadius = UDim.new(0, 8)
-menuCorner.Parent = menuButton
-
-menuButton.Activated:Connect(function()
-    panel.Visible = not panel.Visible
-end)
-
-local order = 0
-local function nextOrder()
-    order = order + 1
-    return order
-end
-
-local function makeToggle(text, default, callback)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 0, 32)
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 15
-    button.LayoutOrder = nextOrder()
-    button.Parent = panel
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = button
-
-    local state = default
-
-    local function refresh()
-        button.Text = text .. " : " .. (state and "ON" or "OFF")
-        button.BackgroundColor3 = state and Color3.fromRGB(0, 140, 60) or Color3.fromRGB(140, 30, 30)
-    end
-
-    local object = {}
-    function object.set(value, silent)
-        state = value
-        refresh()
-        if not silent then callback(state) end
-    end
-    function object.get()
-        return state
-    end
-
-    button.Activated:Connect(function()
-        object.set(not state)
-    end)
-
-    refresh()
-    return object
-end
-
-local function makeSlider(text, minValue, maxValue, default, callback)
-    local holder = Instance.new("Frame")
-    holder.Size = UDim2.new(1, 0, 0, 44)
-    holder.BackgroundTransparency = 1
-    holder.Active = true
-    holder.LayoutOrder = nextOrder()
-    holder.Parent = panel
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 0, 18)
-    label.BackgroundTransparency = 1
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 14
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = holder
-
-    local track = Instance.new("Frame")
-    track.Size = UDim2.new(1, -16, 0, 8)
-    track.Position = UDim2.new(0, 8, 0, 30)
-    track.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    track.Parent = holder
-
-    local trackCorner = Instance.new("UICorner")
-    trackCorner.CornerRadius = UDim.new(1, 0)
-    trackCorner.Parent = track
-
-    local fill = Instance.new("Frame")
-    fill.Size = UDim2.new(0, 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-    fill.Parent = track
-
-    local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(1, 0)
-    fillCorner.Parent = fill
-
-    local knob = Instance.new("Frame")
-    knob.AnchorPoint = Vector2.new(0.5, 0.5)
-    knob.Size = UDim2.new(0, 20, 0, 20)
-    knob.Position = UDim2.new(0, 0, 0.5, 0)
-    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    knob.Parent = track
-
-    local knobCorner = Instance.new("UICorner")
-    knobCorner.CornerRadius = UDim.new(1, 0)
-    knobCorner.Parent = knob
-
-    local object = {}
-
-    function object.set(value, silent)
-        value = math.clamp(math.floor(value + 0.5), minValue, maxValue)
-        local alpha = (value - minValue) / (maxValue - minValue)
-        fill.Size = UDim2.new(alpha, 0, 1, 0)
-        knob.Position = UDim2.new(alpha, 0, 0.5, 0)
-        label.Text = text .. " : " .. tostring(value)
-        if not silent then callback(value) end
-    end
-
-    local dragging = false
-    local dragInput = nil
-
-    local function fromInput(input)
-        local alpha = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-        object.set(minValue + alpha * (maxValue - minValue))
-    end
-
-    holder.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragInput = input
-            fromInput(input)
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input == dragInput then
-            fromInput(input)
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(input)
-        if input == dragInput or input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-            dragInput = nil
-        end
-    end)
-
-    object.set(default, true)
-    return object
-end
+local HighlightTab = Window:CreateTab("Highlight", 4483362458)
+local AimTab = Window:CreateTab("Aim Assist", 4483362458)
+local FlyTab = Window:CreateTab("Fly", 4483362458)
 
 -- ----- Highlight -----
-makeToggle("Highlight tous les joueurs", false, function(value)
-    highlightAll = value
-    for _, player in ipairs(Players:GetPlayers()) do
-        if value then
-            applyHighlight(player)
-        else
-            removeHighlight(player)
+HighlightTab:CreateSection("Joueurs")
+
+HighlightTab:CreateToggle({
+    Name = "Highlight tous les joueurs",
+    CurrentValue = false,
+    Flag = "HighlightAll",
+    Callback = function(value)
+        highlightAll = value
+        for _, player in ipairs(Players:GetPlayers()) do
+            if value then applyHighlight(player) else removeHighlight(player) end
         end
-    end
-end)
+    end,
+})
 
-local function makeActionButton(text, callback)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 0, 32)
-    button.BackgroundColor3 = Color3.fromRGB(55, 75, 100)
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 13
-    button.Text = text
-    button.LayoutOrder = nextOrder()
-    button.Parent = panel
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = button
-    button.Activated:Connect(callback)
-    return button
-end
-
-local selectedLabel
-
-local function cycleSelectedPlayer()
-    local candidates = {}
+local function getPlayerNames()
+    local names = {}
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then table.insert(candidates, player) end
+        if player ~= LocalPlayer then table.insert(names, player.Name) end
     end
-    table.sort(candidates, function(a, b) return a.Name:lower() < b.Name:lower() end)
-    if #candidates == 0 then
-        selectedPlayer = nil
-        return
-    end
-    local index = table.find(candidates, selectedPlayer) or 0
-    selectedPlayer = candidates[(index % #candidates) + 1]
-    selectedLabel.Text = "Cible : " .. selectedPlayer.Name
+    table.sort(names, function(a, b) return a:lower() < b:lower() end)
+    return names
 end
 
-selectedLabel = Instance.new("TextLabel")
-selectedLabel.Size = UDim2.new(1, 0, 0, 24)
-selectedLabel.BackgroundTransparency = 1
-selectedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-selectedLabel.Font = Enum.Font.Gotham
-selectedLabel.TextSize = 13
-selectedLabel.Text = "Cible : aucune"
-selectedLabel.LayoutOrder = nextOrder()
-selectedLabel.Parent = panel
+local selectedName = nil
+local playerDropdown = HighlightTab:CreateDropdown({
+    Name = "Choisir un joueur",
+    Options = getPlayerNames(),
+    CurrentOption = {},
+    MultipleOptions = false,
+    Flag = "SelectedHighlightPlayer",
+    Callback = function(option)
+        selectedName = (type(option) == "table") and option[1] or option
+        selectedPlayer = selectedName and Players:FindFirstChild(selectedName) or nil
+    end,
+})
 
-makeActionButton("Choisir le joueur suivant", cycleSelectedPlayer)
-makeActionButton("Highlight la cible", function()
-    if selectedPlayer then applyHighlight(selectedPlayer) end
-end)
-makeActionButton("Retirer le highlight de la cible", function()
-    if selectedPlayer then removeHighlight(selectedPlayer) end
-end)
-makeActionButton("Tout retirer", function()
-    highlightAll = false
-    for player in pairs(highlights) do removeHighlight(player) end
-end)
+HighlightTab:CreateButton({
+    Name = "Actualiser la liste des joueurs",
+    Callback = function()
+        playerDropdown:Refresh(getPlayerNames())
+        Rayfield:Notify({ Title = "Liste actualisée", Content = "La liste des joueurs a été actualisée.", Duration = 3 })
+    end,
+})
 
-makeSlider("Transparence highlight (0-100)", 0, 100, 50, function(value)
-    fillTransparency = value / 100
-    refreshHighlights()
-end)
+HighlightTab:CreateButton({
+    Name = "Highlight le joueur sélectionné",
+    Callback = function()
+        if selectedPlayer and selectedPlayer.Parent == Players then
+            applyHighlight(selectedPlayer)
+        else
+            Rayfield:Notify({ Title = "Aucun joueur", Content = "Sélectionne d'abord un joueur.", Duration = 3 })
+        end
+    end,
+})
 
-makeActionButton("Couleur remplissage : rouge/vert/bleu", function()
-    if fillColor == Color3.fromRGB(255, 0, 0) then
-        fillColor = Color3.fromRGB(0, 255, 0)
-    elseif fillColor == Color3.fromRGB(0, 255, 0) then
-        fillColor = Color3.fromRGB(0, 120, 255)
-    else
-        fillColor = Color3.fromRGB(255, 0, 0)
-    end
-    refreshHighlights()
-end)
+HighlightTab:CreateButton({
+    Name = "Retirer le highlight de la cible",
+    Callback = function()
+        if selectedPlayer then removeHighlight(selectedPlayer) end
+    end,
+})
 
-makeActionButton("Couleur contour : blanc/noir", function()
-    outlineColor = (outlineColor == Color3.fromRGB(255, 255, 255))
-        and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
-    refreshHighlights()
-end)
+HighlightTab:CreateButton({
+    Name = "Tout retirer",
+    Callback = function()
+        highlightAll = false
+        for player in pairs(highlights) do removeHighlight(player) end
+    end,
+})
 
--- ----- Aim assist -----
-local aimToggle = makeToggle("AIM", CONFIG.AimEnabled, function(value)
-    CONFIG.AimEnabled = value
-end)
+HighlightTab:CreateSection("Apparence")
+HighlightTab:CreateColorPicker({
+    Name = "Couleur de remplissage",
+    Color = fillColor,
+    Flag = "HighlightFillColor",
+    Callback = function(color)
+        fillColor = color
+        refreshHighlights()
+    end,
+})
+HighlightTab:CreateColorPicker({
+    Name = "Couleur du contour",
+    Color = outlineColor,
+    Flag = "HighlightOutlineColor",
+    Callback = function(color)
+        outlineColor = color
+        refreshHighlights()
+    end,
+})
+HighlightTab:CreateSlider({
+    Name = "Transparence du remplissage (%)",
+    Range = { 0, 100 },
+    Increment = 5,
+    CurrentValue = math.floor(fillTransparency * 100),
+    Flag = "HighlightTransparency",
+    Callback = function(value)
+        fillTransparency = value / 100
+        refreshHighlights()
+    end,
+})
 
-makeSlider("Puissance aide (0-100)", 0, 100, CONFIG.AssistPower, function(value)
-    CONFIG.AssistPower = value
-end)
+-- ----- Aim Assist -----
+AimTab:CreateSection("Assistance de visée")
+AimTab:CreateToggle({
+    Name = "Activer Aim Assist",
+    CurrentValue = CONFIG.AimEnabled,
+    Flag = "AimEnabled",
+    Callback = function(value)
+        CONFIG.AimEnabled = value
+    end,
+})
+AimTab:CreateSlider({
+    Name = "Puissance aide (0-100)",
+    Range = { 0, 100 },
+    Increment = 5,
+    CurrentValue = CONFIG.AssistPower,
+    Flag = "AimPower",
+    Callback = function(value)
+        CONFIG.AssistPower = value
+    end,
+})
+AimTab:CreateSlider({
+    Name = "Rayon de ciblage FOV",
+    Range = { 40, 500 },
+    Increment = 10,
+    CurrentValue = CONFIG.FovRadius,
+    Flag = "FovRadius",
+    Callback = function(value)
+        CONFIG.FovRadius = value
+    end,
+})
 
-makeSlider("Taille du cercle FOV", 40, 500, CONFIG.FovRadius, function(value)
-    CONFIG.FovRadius = value
-    fovCircle.Size = UDim2.fromOffset(value * 2, value * 2)
-end)
-
-makeToggle("Cercle FOV", CONFIG.ShowFovCircle, function(value)
-    CONFIG.ShowFovCircle = value
-    fovCircle.Visible = value
-end)
-
--- ----- Fly (owner uniquement) -----
-if canFly then
-    flyToggle = makeToggle("FLY", false, function(value)
+-- ----- Fly -----
+FlyTab:CreateSection("Déplacement")
+FlyTab:CreateToggle({
+    Name = "Activer Fly",
+    CurrentValue = false,
+    Flag = "FlyEnabled",
+    Callback = function(value)
         if value then
             if not startFly() then
-                flyToggle.set(false, true)
+                Rayfield:Notify({ Title = "Fly impossible", Content = "Ton personnage n'est pas encore chargé.", Duration = 3 })
             end
         else
             stopFly()
         end
-    end)
-
-    makeSlider("Vitesse fly (1-256)", 1, 256, CONFIG.FlySpeed, function(value)
+    end,
+})
+FlyTab:CreateSlider({
+    Name = "Vitesse Fly (1-256)",
+    Range = { 1, 256 },
+    Increment = 1,
+    CurrentValue = CONFIG.FlySpeed,
+    Flag = "FlySpeed",
+    Callback = function(value)
         CONFIG.FlySpeed = value
-    end)
-end
+    end,
+})
 
--- ====== TOUCHES PC ======
-UserInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end
-
-    if input.KeyCode == CONFIG.AimKey then
-        aimToggle.set(not aimToggle.get())
-    elseif input.KeyCode == CONFIG.FlyKey and flyToggle then
-        flyToggle.set(not flyToggle.get())
-    end
+Players.PlayerAdded:Connect(function()
+    task.wait(0.5)
+    pcall(function() playerDropdown:Refresh(getPlayerNames()) end)
 end)
+Players.PlayerRemoving:Connect(function()
+    task.wait(0.1)
+    pcall(function() playerDropdown:Refresh(getPlayerNames()) end)
+end)
+
+Rayfield:Notify({
+    Title = "Panneau chargé",
+    Content = "Les outils sont disponibles dans les onglets Highlight, Aim Assist et Fly.",
+    Duration = 4,
+})
