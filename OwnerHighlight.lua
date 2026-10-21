@@ -1,44 +1,15 @@
 --[[
-    Owner Highlight - LocalScript
-    A mettre dans StarterPlayer > StarterPlayerScripts
-    Seul le créateur du jeu (owner) peut utiliser le menu.
+    Highlight Panel - LocalScript
 ]]
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- ====== VERIFICATION OWNER ======
-local function isOwner(player)
-    if game.CreatorType == Enum.CreatorType.User then
-        return player.UserId == game.CreatorId
-    elseif game.CreatorType == Enum.CreatorType.Group then
-        -- Rang 255 = propriétaire du groupe
-        local ok, rank = pcall(function()
-            return player:GetRankInGroup(game.CreatorId)
-        end)
-        return ok and rank == 255
-    end
-    return false
-end
-
--- Pour tester dans Studio, tu peux aussi ajouter ton UserId ici :
-local EXTRA_OWNERS = {
-    -- 123456789,
-}
-
-local function allowed(player)
-    return isOwner(player) or table.find(EXTRA_OWNERS, player.UserId) ~= nil
-end
-
-if not allowed(LocalPlayer) then
-    return
-end
-
 -- ====== CHARGEMENT RAYFIELD ======
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 -- ====== LOGIQUE HIGHLIGHT ======
-local highlights = {}       -- [Player] = Highlight
+local highlights = {}       -- table : joueur -> Highlight
 local highlightAll = false
 local fillColor = Color3.fromRGB(255, 0, 0)
 local outlineColor = Color3.fromRGB(255, 255, 255)
@@ -104,9 +75,9 @@ Players.PlayerRemoving:Connect(removeHighlight)
 
 -- ====== INTERFACE RAYFIELD ======
 local Window = Rayfield:CreateWindow({
-    Name = "Owner Panel",
+    Name = "Highlight Panel",
     LoadingTitle = "Owner Highlight",
-    LoadingSubtitle = "par toi",
+    LoadingSubtitle = "par KTS_KNIGTH",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false,
 })
